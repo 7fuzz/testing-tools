@@ -34,7 +34,13 @@ pub fn shoot<S>(name: &str, theme: egui::Theme, state: S, mut draw: impl FnMut(&
         },
         state,
     );
-    harness.run();
+    // Fixed steps rather than run(): spinners keep requesting repaints. Background work
+    // (renders, the camera engine) lands a moment later.
+    harness.run_steps(3);
+    for _ in 0..3 {
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        harness.run_steps(2);
+    }
     let image = harness.render().expect("offscreen render");
     image.save(out_dir().join(format!("{name}.png"))).unwrap();
 }
@@ -57,4 +63,5 @@ fn screenshots() {
     shoot_tab("settings", Tab::Settings, AppState::default(), |_| {});
     crate::features::qris::screenshots();
     crate::features::ktp::screenshots();
+    crate::features::vcam::screenshots();
 }

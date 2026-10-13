@@ -10,20 +10,22 @@ pub enum Tab {
     Home,
     Qris,
     Ktp,
+    Vcam,
     Settings,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 4] = [Tab::Home, Tab::Qris, Tab::Ktp, Tab::Settings];
+    pub const ALL: [Tab; 5] = [Tab::Home, Tab::Qris, Tab::Ktp, Tab::Vcam, Tab::Settings];
 
     /// The testing tools, in the order Home and the menus list them.
-    pub const TOOLS: &'static [Tab] = &[Tab::Qris, Tab::Ktp];
+    pub const TOOLS: &'static [Tab] = &[Tab::Qris, Tab::Ktp, Tab::Vcam];
 
     pub fn name(&self) -> &'static str {
         match self {
             Tab::Home => "Home",
             Tab::Qris => "QRIS",
             Tab::Ktp => "KTP specimen",
+            Tab::Vcam => "Virtual camera",
             Tab::Settings => "Settings",
         }
     }
@@ -33,6 +35,7 @@ impl Tab {
             Tab::Home => icons::HOUSE,
             Tab::Qris => icons::QR_CODE,
             Tab::Ktp => icons::IDENTIFICATION_CARD,
+            Tab::Vcam => icons::VIDEO_CAMERA,
             Tab::Settings => icons::GEAR,
         }
     }
@@ -42,6 +45,7 @@ impl Tab {
             Tab::Home => "Every tool at a glance",
             Tab::Qris => "Generate and inspect QRIS codes for fictional merchants",
             Tab::Ktp => "KTP-layout test cards and selfies with a cat, marked SPECIMEN",
+            Tab::Vcam => "Stack images, videos and generated codes into a webcam feed",
             Tab::Settings => "Theme, output folder and shortcuts",
         }
     }
@@ -169,8 +173,9 @@ impl egui_dock::TabViewer for TabViewer<'_> {
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Tab) {
         match tab {
             Tab::Home => features::home::show(ui, self.cmds),
-            Tab::Qris => features::qris::show(ui, &mut self.state.qris, &self.state.settings),
-            Tab::Ktp => features::ktp::show(ui, &mut self.state.ktp, &self.state.settings),
+            Tab::Qris => features::qris::show(ui, &mut self.state.qris, &self.state.settings, self.cmds),
+            Tab::Ktp => features::ktp::show(ui, &mut self.state.ktp, &self.state.settings, self.cmds),
+            Tab::Vcam => features::vcam::show(ui, &mut self.state.vcam, &self.state.settings, self.cmds),
             Tab::Settings => features::settings::show(ui, &mut self.state.settings),
         }
     }

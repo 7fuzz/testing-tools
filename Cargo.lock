@@ -3922,6 +3922,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "image",
+ "libc",
  "qrcode",
  "rand 0.9.5",
  "rand_chacha",

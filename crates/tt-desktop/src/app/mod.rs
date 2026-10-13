@@ -35,6 +35,16 @@ impl App {
             AppCommand::OpenTab(tab) => dock::open_tab(&mut self.dock, tab),
             AppCommand::FocusTabAt(index) => dock::focus_tab_at(&mut self.dock, index),
             AppCommand::CycleTab { forward } => dock::cycle_tab(&mut self.dock, forward),
+            AppCommand::OpenGenerated { generator, params, seed } => {
+                if let Some(entry) = crate::generators::find(&generator) {
+                    (entry.open_in_tool)(&mut self.state, &params, seed);
+                    dock::open_tab(&mut self.dock, entry.tab);
+                }
+            }
+            AppCommand::SendToCamera { generator, params, seed } => {
+                self.state.vcam.prefill(&generator, params, seed);
+                dock::open_tab(&mut self.dock, Tab::Vcam);
+            }
         }
     }
 }

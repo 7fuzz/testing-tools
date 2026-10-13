@@ -6,6 +6,7 @@ use crate::app::state::AppState;
 use crate::features::ktp::KtpPrefs;
 use crate::features::qris::QrisPrefs;
 use crate::features::settings::SettingsPrefs;
+use crate::features::vcam::VcamPrefs;
 use crate::ui::dock::{self, Tab};
 
 // Separate keys, so a section that stops parsing resets alone instead of wiping the rest.
@@ -32,6 +33,10 @@ impl Section for KtpPrefs {
     const KEY: &'static str = "ktp";
 }
 
+impl Section for VcamPrefs {
+    const KEY: &'static str = "vcam";
+}
+
 fn load<T: Section>(storage: Option<&dyn Storage>) -> T {
     storage.and_then(|s| eframe::get_value(s, T::KEY)).unwrap_or_default()
 }
@@ -44,6 +49,10 @@ pub fn restore(storage: Option<&dyn Storage>, state: &mut AppState) -> DockState
     state.settings = load(storage);
     state.qris.prefs = load(storage);
     state.ktp.prefs = load(storage);
+    state.vcam.prefs = load(storage);
+    if state.vcam.prefs.scenes.is_empty() {
+        state.vcam.prefs = VcamPrefs::default();
+    }
     load::<DockLayout>(storage).0.unwrap_or_else(dock::initial_layout)
 }
 
@@ -52,4 +61,5 @@ pub fn persist(storage: &mut dyn Storage, dock: &DockState<Tab>, state: &AppStat
     save(storage, &state.settings);
     save(storage, &state.qris.prefs);
     save(storage, &state.ktp.prefs);
+    save(storage, &state.vcam.prefs);
 }

@@ -2,6 +2,7 @@ use std::path::Path;
 use eframe::egui::{self, RichText};
 use tt_core::qris::{self, Merchant, tlv};
 use super::{Mode, QrisState, fields, form, staging};
+use crate::app::command::{AppCommand, Commands};
 use crate::features::settings::SettingsPrefs;
 use crate::ui::icons;
 use crate::util::job::{Job, take_finished};
@@ -13,7 +14,7 @@ use crate::widgets::toast;
 
 const PREVIEW_MAX: f32 = 340.0;
 
-pub fn show(ui: &mut egui::Ui, state: &mut QrisState, settings: &SettingsPrefs) {
+pub fn show(ui: &mut egui::Ui, state: &mut QrisState, settings: &SettingsPrefs, cmds: &mut Commands) {
     if let Some(result) = take_finished(&mut state.decoding) {
         match result {
             Ok(text) => state.prefs.inspect_input = text,
@@ -26,12 +27,12 @@ pub fn show(ui: &mut egui::Ui, state: &mut QrisState, settings: &SettingsPrefs) 
         ui.add_space(4.0);
     });
     match state.prefs.mode {
-        Mode::Generate => generate(ui, state, &settings.output_dir()),
+        Mode::Generate => generate(ui, state, &settings.output_dir(), cmds),
         Mode::Inspect => inspect(ui, state),
     }
 }
 
-fn generate(ui: &mut egui::Ui, state: &mut QrisState, output_dir: &Path) {
+fn generate(ui: &mut egui::Ui, state: &mut QrisState, output_dir: &Path, cmds: &mut Commands) {
     egui::Panel::left("qris_form").resizable(true).default_size(360.0).size_range(300.0..=560.0).show(ui, |ui| {
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             section_with(ui, "Merchant", |ui| {
@@ -53,7 +54,7 @@ fn generate(ui: &mut egui::Ui, state: &mut QrisState, output_dir: &Path) {
             ui.add_space(8.0);
             ui.add(egui::Label::new(RichText::new(&payload).family(egui::FontFamily::Monospace).size(crate::ui::theme::SMALL_SIZE)).selectable(true).wrap());
             ui.add_space(6.0);
-            actions(ui, state, &payload, output_dir);
+            actions(ui, state, &payload, output_dir, cmds);
             section(ui, "Fields");
             fields::show(ui, &payload);
             section(ui, "Staging");
@@ -83,7 +84,7 @@ fn refresh_preview(ctx: &egui::Context, state: &mut QrisState, payload: &str) {
     }
 }
 
-fn actions(ui: &mut egui::Ui, state: &mut QrisState, payload: &str, output_dir: &Path) {
+fn actions(ui: &mut egui::Ui, state: &mut QrisState, payload: &str, output_dir: &Path, cmds: &mut Commands) {
     ui.horizontal_wrapped(|ui| {
         if ui.button(format!("{} Copy payload", icons::COPY)).clicked() {
             ui.ctx().copy_text(payload.to_string());
@@ -103,6 +104,10 @@ fn actions(ui: &mut egui::Ui, state: &mut QrisState, payload: &str, output_dir: 
                 Ok(None) => {}
                 Err(error) => toast::push(ui.ctx(), Err(error)),
             }
+        }
+        if ui.button(format!("{} Send to camera", icons::VIDEO_CAMERA)).on_hover_text("Add as a layer in the virtual camera").clicked() {
+            let params = tt_core::generator::to_json(&state.prefs.merchant);
+            cmds.push(AppCommand::SendToCamera { generator: "qris".into(), params, seed: 0 });
         }
         if ui.button(format!("{} Inspect", icons::MAGNIFYING_GLASS)).clicked() {
             state.prefs.inspect_input = payload.to_string();

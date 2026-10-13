@@ -1,9 +1,7 @@
-// VCam (phase 4) is the first reader of the registry.
-#![allow(dead_code)]
-
 use eframe::egui;
 use serde_json::Value;
 use tt_core::generator::{ErasedGenerator, Generator, to_json};
+use crate::app::state::AppState;
 use crate::ui::dock::Tab;
 
 /// The desktop half of a generator: the compact form other tools embed, such as VCam's quick create.
@@ -13,6 +11,9 @@ pub trait GeneratorUi: Generator {
 
     /// A few key fields and a randomize button. Returns true when a param changed.
     fn quick_form(ui: &mut egui::Ui, params: &mut Self::Params) -> bool;
+
+    /// Loads `params` into the generator's own tab.
+    fn open_in_tool(state: &mut AppState, params: Self::Params, seed: u64);
 }
 
 #[derive(Clone, Copy)]
@@ -20,11 +21,12 @@ pub struct GeneratorEntry {
     pub core: ErasedGenerator,
     pub tab: Tab,
     pub quick_form: fn(&mut egui::Ui, &mut Value) -> bool,
+    pub open_in_tool: fn(&mut AppState, &Value, u64),
 }
 
 impl GeneratorEntry {
     pub const fn of<G: GeneratorUi>() -> Self {
-        Self { core: ErasedGenerator::of::<G>(), tab: G::TAB, quick_form: quick_form_json::<G> }
+        Self { core: ErasedGenerator::of::<G>(), tab: G::TAB, quick_form: quick_form_json::<G>, open_in_tool: open_json::<G> }
     }
 }
 
@@ -35,6 +37,10 @@ fn quick_form_json<G: GeneratorUi>(ui: &mut egui::Ui, params: &mut Value) -> boo
         *params = to_json(&typed);
     }
     changed
+}
+
+fn open_json<G: GeneratorUi>(state: &mut AppState, params: &Value, seed: u64) {
+    G::open_in_tool(state, serde_json::from_value(params.clone()).unwrap_or_default(), seed);
 }
 
 pub const REGISTRY: &[GeneratorEntry] = &[
@@ -82,6 +88,8 @@ mod tests {
             params.size += 4;
             true
         }
+
+        fn open_in_tool(_: &mut AppState, _: BlankParams, _: u64) {}
     }
 
     #[test]

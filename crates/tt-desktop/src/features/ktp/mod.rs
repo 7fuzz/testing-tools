@@ -49,6 +49,11 @@ impl GeneratorUi for Ktp {
     fn quick_form(ui: &mut egui::Ui, params: &mut KtpParams) -> bool {
         form::quick(ui, params)
     }
+
+    fn open_in_tool(state: &mut crate::app::state::AppState, params: KtpParams, seed: u64) {
+        state.ktp.prefs.params = params;
+        state.ktp.prefs.seed = seed;
+    }
 }
 
 impl GeneratorUi for KtpSelfie {
@@ -56,6 +61,12 @@ impl GeneratorUi for KtpSelfie {
 
     fn quick_form(ui: &mut egui::Ui, params: &mut KtpParams) -> bool {
         form::quick(ui, params)
+    }
+
+    fn open_in_tool(state: &mut crate::app::state::AppState, params: KtpParams, seed: u64) {
+        state.ktp.prefs.params = params;
+        state.ktp.prefs.seed = seed;
+        state.ktp.prefs.selfie = true;
     }
 }
 

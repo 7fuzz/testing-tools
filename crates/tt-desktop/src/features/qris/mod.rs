@@ -44,6 +44,11 @@ impl GeneratorUi for Qris {
     fn quick_form(ui: &mut egui::Ui, merchant: &mut Merchant) -> bool {
         form::quick(ui, merchant)
     }
+
+    fn open_in_tool(state: &mut crate::app::state::AppState, merchant: Merchant, _seed: u64) {
+        state.qris.prefs.merchant = merchant;
+        state.qris.prefs.mode = Mode::Generate;
+    }
 }
 
 #[cfg(test)]

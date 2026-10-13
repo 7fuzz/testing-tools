@@ -5,6 +5,7 @@ use tt_core::generator::{random_seed, rng};
 use tt_core::ktp::identity::IdentityParams;
 use tt_core::ktp::{self, KtpParams, today};
 use super::{KtpState, Rendered, form};
+use crate::app::command::{AppCommand, Commands};
 use crate::features::settings::SettingsPrefs;
 use crate::ui::icons;
 use crate::util::job::{Job, take_finished};
@@ -72,7 +73,7 @@ fn render(params: &KtpParams, seed: u64, with_selfie: bool) -> Rendered {
     Ok((set.card, set.selfie))
 }
 
-pub fn show(ui: &mut egui::Ui, state: &mut KtpState, settings: &SettingsPrefs) {
+pub fn show(ui: &mut egui::Ui, state: &mut KtpState, settings: &SettingsPrefs, cmds: &mut Commands) {
     state.poll(ui.ctx());
     if let Some(result) = take_finished(&mut state.exporting) {
         toast::push(ui.ctx(), result);
@@ -82,7 +83,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut KtpState, settings: &SettingsPrefs) {
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| sidebar(ui, state, &output_dir));
     });
     egui::CentralPanel::default().frame(egui::Frame::new().inner_margin(egui::Margin { left: 12, ..Default::default() })).show(ui, |ui| {
-        egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| preview(ui, state, &output_dir));
+        egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| preview(ui, state, &output_dir, cmds));
     });
 }
 
@@ -139,7 +140,7 @@ fn sidebar(ui: &mut egui::Ui, state: &mut KtpState, output_dir: &Path) {
     });
 }
 
-fn preview(ui: &mut egui::Ui, state: &mut KtpState, output_dir: &Path) {
+fn preview(ui: &mut egui::Ui, state: &mut KtpState, output_dir: &Path, cmds: &mut Commands) {
     if let Some(error) = &state.error {
         ui.label(RichText::new(format!("{} {error}", icons::WARNING)).color(ui.visuals().error_fg_color));
     }
@@ -167,6 +168,11 @@ fn preview(ui: &mut egui::Ui, state: &mut KtpState, output_dir: &Path) {
             && ui.button(format!("{} Copy selfie", icons::COPY)).clicked()
         {
             toast::push(ui.ctx(), clipboard::copy_image(selfie).map(|_| "Selfie copied".into()));
+        }
+        if ui.button(format!("{} Send to camera", icons::VIDEO_CAMERA)).on_hover_text("Add the selfie (or the card) as a virtual camera layer").clicked() {
+            let generator = if state.prefs.selfie { "ktp-selfie" } else { "ktp" };
+            let params = tt_core::generator::to_json(&state.prefs.params);
+            cmds.push(AppCommand::SendToCamera { generator: generator.into(), params, seed: state.prefs.seed });
         }
         if ui.button("Save card as…").clicked() {
             match output::save_png_as(output_dir, "ktp", card) {

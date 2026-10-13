@@ -6,6 +6,10 @@ pub enum AppCommand {
     OpenTab(Tab),
     FocusTabAt(usize),
     CycleTab { forward: bool },
+    /// Opens a generator's own tab with these params (from a VCam layer).
+    OpenGenerated { generator: String, params: serde_json::Value, seed: u64 },
+    /// Opens VCam's quick create prefilled with these params (from a generator tab).
+    SendToCamera { generator: String, params: serde_json::Value, seed: u64 },
 }
 
 #[derive(Default)]
