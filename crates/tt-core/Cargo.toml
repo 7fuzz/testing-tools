@@ -1,0 +1,12 @@
+[package]
+name = "tt-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+image.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rand = "0.9"
+rand_chacha = "0.9"

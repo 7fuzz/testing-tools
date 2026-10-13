@@ -1,0 +1,23 @@
+[package]
+name = "tt-desktop"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "testing-tools"
+path = "src/main.rs"
+
+[dependencies]
+tt-core = { path = "../tt-core" }
+
+anyhow.workspace = true
+image.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+eframe = { version = "0.36.2", features = ["persistence"] }
+egui = "0.36.2"
+egui_dock = { version = "0.21.1", features = ["serde"] }
+egui_extras = { version = "0.36.2", features = ["default", "image", "svg"] }
+rfd = "0.17"
+open = "5"

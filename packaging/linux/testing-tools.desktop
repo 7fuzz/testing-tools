@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Testing Tools
+Comment=Generate QRIS codes, KTP specimens and virtual camera scenes for QA
+Exec=testing-tools
+Icon=testing-tools
+Terminal=false
+Categories=Development;Utility;
+StartupWMClass=testing-tools
