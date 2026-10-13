@@ -37,7 +37,11 @@ fn quick_form_json<G: GeneratorUi>(ui: &mut egui::Ui, params: &mut Value) -> boo
     changed
 }
 
-pub const REGISTRY: &[GeneratorEntry] = &[GeneratorEntry::of::<tt_core::qris::Qris>()];
+pub const REGISTRY: &[GeneratorEntry] = &[
+    GeneratorEntry::of::<tt_core::qris::Qris>(),
+    GeneratorEntry::of::<tt_core::ktp::Ktp>(),
+    GeneratorEntry::of::<tt_core::ktp::KtpSelfie>(),
+];
 
 pub fn find(id: &str) -> Option<&'static GeneratorEntry> {
     REGISTRY.iter().find(|entry| entry.core.id == id)

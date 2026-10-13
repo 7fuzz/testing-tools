@@ -1,3 +1,4 @@
+use crate::features::ktp::KtpState;
 use crate::features::qris::QrisState;
 use crate::features::settings::SettingsPrefs;
 
@@ -5,4 +6,5 @@ use crate::features::settings::SettingsPrefs;
 pub struct AppState {
     pub settings: SettingsPrefs,
     pub qris: QrisState,
+    pub ktp: KtpState,
 }

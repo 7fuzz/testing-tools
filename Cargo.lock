@@ -630,6 +630,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "windows-link",
 ]
@@ -3917,7 +3918,9 @@ dependencies = [
 name = "tt-core"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "anyhow",
+ "chrono",
  "image",
  "qrcode",
  "rand 0.9.5",
@@ -3925,6 +3928,7 @@ dependencies = [
  "rqrr",
  "serde",
  "serde_json",
+ "tiny-skia",
 ]
 
 [[package]]

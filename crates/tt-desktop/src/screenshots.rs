@@ -56,4 +56,5 @@ fn screenshots() {
     shoot_tab("home", Tab::Home, AppState::default(), |_| {});
     shoot_tab("settings", Tab::Settings, AppState::default(), |_| {});
     crate::features::qris::screenshots();
+    crate::features::ktp::screenshots();
 }

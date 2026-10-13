@@ -9,19 +9,21 @@ use crate::ui::icons;
 pub enum Tab {
     Home,
     Qris,
+    Ktp,
     Settings,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 3] = [Tab::Home, Tab::Qris, Tab::Settings];
+    pub const ALL: [Tab; 4] = [Tab::Home, Tab::Qris, Tab::Ktp, Tab::Settings];
 
     /// The testing tools, in the order Home and the menus list them.
-    pub const TOOLS: &'static [Tab] = &[Tab::Qris];
+    pub const TOOLS: &'static [Tab] = &[Tab::Qris, Tab::Ktp];
 
     pub fn name(&self) -> &'static str {
         match self {
             Tab::Home => "Home",
             Tab::Qris => "QRIS",
+            Tab::Ktp => "KTP specimen",
             Tab::Settings => "Settings",
         }
     }
@@ -30,6 +32,7 @@ impl Tab {
         match self {
             Tab::Home => icons::HOUSE,
             Tab::Qris => icons::QR_CODE,
+            Tab::Ktp => icons::IDENTIFICATION_CARD,
             Tab::Settings => icons::GEAR,
         }
     }
@@ -38,6 +41,7 @@ impl Tab {
         match self {
             Tab::Home => "Every tool at a glance",
             Tab::Qris => "Generate and inspect QRIS codes for fictional merchants",
+            Tab::Ktp => "KTP-layout test cards and selfies with a cat, marked SPECIMEN",
             Tab::Settings => "Theme, output folder and shortcuts",
         }
     }
@@ -166,6 +170,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
         match tab {
             Tab::Home => features::home::show(ui, self.cmds),
             Tab::Qris => features::qris::show(ui, &mut self.state.qris, &self.state.settings),
+            Tab::Ktp => features::ktp::show(ui, &mut self.state.ktp, &self.state.settings),
             Tab::Settings => features::settings::show(ui, &mut self.state.settings),
         }
     }
