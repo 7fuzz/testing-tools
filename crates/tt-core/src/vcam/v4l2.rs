@@ -180,7 +180,16 @@ impl OutputDevice {
                 std::io::Error::last_os_error()
             );
         }
-        self.frame_size = sizeimage as usize;
+        // While a camera app is reading, v4l2loopback keeps its current size and reports that back
+        // instead of failing, so the frames have to match what it says, not what was asked for.
+        // SAFETY: the driver filled the `pix` member for a video output format.
+        let accepted = unsafe { format.fmt.pix };
+        if accepted.pixelformat != PIX_FMT_YUYV || accepted.bytesperline != accepted.width * 2 {
+            bail!("{} kept a format this app can't write ({}x{}, not packed YUYV)", self.path, accepted.width, accepted.height);
+        }
+        self.width = accepted.width;
+        self.height = accepted.height;
+        self.frame_size = (accepted.bytesperline * accepted.height) as usize;
         Ok(())
     }
 
@@ -193,12 +202,46 @@ impl OutputDevice {
     }
 }
 
+/// Whether a process other than this one has `path` open (a camera app reading it). Only processes
+/// of the same user are visible, which covers browsers and the emulator.
+pub fn opened_elsewhere(path: &str) -> bool {
+    let target = std::fs::canonicalize(path).unwrap_or_else(|_| path.into());
+    let me = std::process::id().to_string();
+    let Ok(procs) = std::fs::read_dir("/proc") else { return false };
+    procs.flatten().filter(|p| p.file_name().to_str().is_some_and(|n| n.bytes().all(|b| b.is_ascii_digit()) && n != me)).any(|p| {
+        std::fs::read_dir(p.path().join("fd"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|fd| std::fs::read_link(fd.path()).is_ok_and(|link| link == target))
+    })
+}
+
 pub const LOOPBACK_HINT: &str =
     "sudo modprobe v4l2loopback devices=1 video_nr=10 card_label=\"Testing Tools\" exclusive_caps=1";
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sees_files_held_open_by_other_processes() {
+        let path = std::env::temp_dir().join(format!("tt-held-{}", std::process::id()));
+        std::fs::write(&path, b"x").unwrap();
+        let _ours = std::fs::File::open(&path).unwrap();
+        assert!(!opened_elsewhere(path.to_str().unwrap()), "our own handle doesn't count");
+        let mut holder = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(format!("exec 3<'{}'; sleep 5", path.display()))
+            .spawn()
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        assert!(opened_elsewhere(path.to_str().unwrap()));
+        holder.kill().unwrap();
+        holder.wait().unwrap();
+        assert!(!opened_elsewhere(path.to_str().unwrap()));
+        let _ = std::fs::remove_file(path);
+    }
 
     #[test]
     fn struct_layouts_match_the_kernel() {

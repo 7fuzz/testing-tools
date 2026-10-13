@@ -17,6 +17,10 @@ pub enum Output {
     Live {
         device: String,
         frames: u64,
+        /// What the device is actually running at.
+        size: (u32, u32),
+        /// Set when the device is held at another size by a camera app, so frames are scaled to fit.
+        held_at: Option<(u32, u32)>,
     },
     Failed(String),
 }
@@ -164,6 +168,55 @@ fn open_device(_: &str, _: &Scene) -> anyhow::Result<Device> {
     anyhow::bail!("the virtual camera needs Linux and v4l2loopback")
 }
 
+/// An open output plus the size it was asked for; the device may be running at another size.
+struct Out {
+    path: String,
+    device: Device,
+    requested: (u32, u32),
+    retry_at: Instant,
+}
+
+const RETRY_SIZE_EVERY: Duration = Duration::from_secs(3);
+
+#[cfg(target_os = "linux")]
+fn device_size(device: &Device) -> (u32, u32) {
+    (device.width, device.height)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn device_size(_: &Device) -> (u32, u32) {
+    (0, 0)
+}
+
+#[cfg(target_os = "linux")]
+fn opened_elsewhere(path: &str) -> bool {
+    super::v4l2::opened_elsewhere(path)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn opened_elsewhere(_: &str) -> bool {
+    false
+}
+
+fn requested_size(scene: &Scene) -> (u32, u32) {
+    (even(scene.width), scene.height.max(1))
+}
+
+fn live(out: &Out, frames: u64) -> Output {
+    let size = device_size(&out.device);
+    Output::Live { device: out.path.clone(), frames, size, held_at: (size != out.requested).then_some(size) }
+}
+
+/// `frame` letterboxed into `size`, for a device that is held at a size other than the canvas.
+fn fit_into(frame: &RgbaImage, size: (u32, u32)) -> RgbaImage {
+    let scale = (size.0 as f32 / frame.width() as f32).min(size.1 as f32 / frame.height() as f32);
+    let (w, h) = (((frame.width() as f32 * scale) as u32).max(1), ((frame.height() as f32 * scale) as u32).max(1));
+    let scaled = image::imageops::resize(frame, w, h, image::imageops::FilterType::Triangle);
+    let mut out = RgbaImage::from_pixel(size.0, size.1, image::Rgba([0, 0, 0, 255]));
+    image::imageops::overlay(&mut out, &scaled, i64::from((size.0 - w) / 2), i64::from((size.1 - h) / 2));
+    out
+}
+
 /// YUYV packs pixel pairs, so the output width must be even.
 fn even(width: u32) -> u32 {
     (width.max(2) + 1) & !1
@@ -186,7 +239,7 @@ fn run(rx: &mpsc::Receiver<Command>, shared: Arc<Shared>, on_frame: &dyn Fn()) {
     let shared = &shared;
     let mut scene = Scene::default();
     let mut compositor = Compositor::default();
-    let mut device: Option<(String, Device, (u32, u32))> = None;
+    let mut out: Option<Out> = None;
     let mut output = Output::Off;
     let mut recorder: Option<Recorder> = None;
     let mut recording = Recording::Off;
@@ -209,19 +262,21 @@ fn run(rx: &mpsc::Receiver<Command>, shared: Arc<Shared>, on_frame: &dyn Fn()) {
                 continue;
             }
             Ok(Command::StartOutput(path)) => {
-                device = None;
+                out = None;
                 output = match open_device(&path, &scene) {
-                    Ok(opened) => {
-                        device = Some((path.clone(), opened, (scene.width, scene.height)));
+                    Ok(device) => {
+                        let opened = Out { path, device, requested: requested_size(&scene), retry_at: Instant::now() + RETRY_SIZE_EVERY };
+                        let state = live(&opened, 0);
+                        out = Some(opened);
                         yuyv_fresh = false;
-                        Output::Live { device: path, frames: 0 }
+                        state
                     }
                     Err(error) => Output::Failed(format!("{error:#}")),
                 };
                 continue;
             }
             Ok(Command::StopOutput) => {
-                device = None;
+                out = None;
                 output = Output::Off;
                 continue;
             }
@@ -252,17 +307,30 @@ fn run(rx: &mpsc::Receiver<Command>, shared: Arc<Shared>, on_frame: &dyn Fn()) {
         let started = Instant::now();
         next_tick = (next_tick + interval).max(started);
 
-        // The device format follows the canvas; reopen when the size changes.
-        if let Some((path, _, size)) = &device
-            && *size != (scene.width, scene.height)
-        {
-            let path = path.clone();
-            device = None;
-            match open_device(&path, &scene) {
-                Ok(opened) => device = Some((path, opened, (scene.width, scene.height))),
-                Err(error) => output = Output::Failed(format!("{error:#}")),
+        // The device format follows the canvas. It can only change size while nothing else has it
+        // open, and only once our own handle is closed; closing it while a camera app reads would make
+        // the camera vanish for that app. So while held, frames are scaled to the held size and the
+        // resize is retried every few seconds until the app lets go.
+        if let Some(current) = &mut out {
+            let wanted = requested_size(&scene);
+            let changed = current.requested != wanted;
+            current.requested = wanted;
+            let behind = device_size(&current.device) != wanted;
+            if behind && (changed || Instant::now() >= current.retry_at) {
+                current.retry_at = Instant::now() + RETRY_SIZE_EVERY;
+                if !opened_elsewhere(&current.path) {
+                    let path = current.path.clone();
+                    out = None;
+                    match open_device(&path, &scene) {
+                        Ok(device) => out = Some(Out { path, device, requested: wanted, retry_at: Instant::now() + RETRY_SIZE_EVERY }),
+                        Err(error) => output = Output::Failed(format!("{error:#}")),
+                    }
+                }
+                yuyv_fresh = false;
             }
-            yuyv_fresh = false;
+            if let (Some(current), Output::Live { frames, .. }) = (&out, &output) {
+                output = live(current, *frames);
+            }
         }
 
         if let Some(active) = &recorder
@@ -283,20 +351,19 @@ fn run(rx: &mpsc::Receiver<Command>, shared: Arc<Shared>, on_frame: &dyn Fn()) {
             *shared.preview.lock().expect("preview lock") = Some(Arc::new(Frame { generation, image: frame_to_rgba(composite.frame) }));
             on_frame();
         }
-        if let Some((_, dev, _)) = &mut device {
+        if let Some(current) = &mut out {
             if !yuyv_fresh {
                 let frame = composite.frame;
-                let image;
-                let (data, width) = if frame.width() % 2 == 0 {
-                    (frame.data(), frame.width())
+                let size = device_size(&current.device);
+                if (frame.width(), frame.height()) == size {
+                    rgba_to_yuyv(frame.data(), size.0, size.1, &mut yuyv);
                 } else {
-                    image = image::imageops::resize(&frame_to_rgba(frame), even(frame.width()), frame.height(), image::imageops::FilterType::Nearest);
-                    (image.as_raw().as_slice(), image.width())
-                };
-                rgba_to_yuyv(data, width, frame.height(), &mut yuyv);
+                    let fitted = fit_into(&frame_to_rgba(frame), size);
+                    rgba_to_yuyv(fitted.as_raw(), size.0, size.1, &mut yuyv);
+                }
                 yuyv_fresh = true;
             }
-            match dev.write_frame(&yuyv) {
+            match current.device.write_frame(&yuyv) {
                 Ok(()) => {
                     if let Output::Live { frames, .. } = &mut output {
                         *frames += 1;
@@ -304,7 +371,7 @@ fn run(rx: &mpsc::Receiver<Command>, shared: Arc<Shared>, on_frame: &dyn Fn()) {
                 }
                 Err(error) => {
                     output = Output::Failed(format!("{error:#}"));
-                    device = None;
+                    out = None;
                 }
             }
         }
@@ -412,6 +479,15 @@ mod tests {
         assert!(wait_for(|| matches!(engine.stats().recording, Recording::Saved(_))), "{:?}", engine.stats().recording);
         assert_eq!(crate::vcam::video::probe_size(&path).unwrap(), (160, 90));
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn frames_letterbox_into_a_held_device_size() {
+        let frame = RgbaImage::from_pixel(1280, 720, image::Rgba([255, 0, 0, 255]));
+        let fitted = fit_into(&frame, (640, 480));
+        assert_eq!(fitted.dimensions(), (640, 480));
+        assert_eq!(fitted.get_pixel(320, 10).0, [0, 0, 0, 255]);
+        assert_eq!(fitted.get_pixel(320, 240).0, [255, 0, 0, 255]);
     }
 
     #[test]

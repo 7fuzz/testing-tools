@@ -195,9 +195,14 @@ fn status(ui: &mut egui::Ui, stats: &Stats) {
     let visuals = ui.visuals().clone();
     let timing = format!("{:.0} fps · {:.1} ms", stats.fps, stats.frame_ms);
     match &stats.output {
-        Output::Live { device, frames } => {
+        Output::Live { device, frames, held_at, .. } => {
             ui.label(RichText::new(format!("● LIVE {device}")).color(Tone::Danger.color(&visuals)).strong());
             ui.label(RichText::new(format!("{timing} · {frames} frames")).small().weak());
+            if let Some((w, h)) = held_at {
+                ui.label(RichText::new(format!("{} held at {w}×{h}", icons::WARNING)).color(Tone::Warn.color(&visuals))).on_hover_text(
+                    "A camera app is reading the device, so it can't change size. Frames are scaled to fit until that app releases the camera.",
+                );
+            }
         }
         Output::Failed(error) => {
             ui.label(RichText::new(format!("{} {error}", icons::WARNING)).color(visuals.error_fg_color));
@@ -211,17 +216,26 @@ fn status(ui: &mut egui::Ui, stats: &Stats) {
     }
 }
 
-/// Keeps the layout when the canvas changes size: everything scales by the smaller factor and stays centred.
+/// Keeps the layout when the canvas changes size. Layers that cover the whole canvas keep covering it;
+/// the rest keep their relative centre and scale by the geometric mean of the two factors, so switching
+/// to another size and back restores the scene exactly.
 pub fn resize_scene(scene: &mut Scene, width: u32, height: u32) {
-    let (sx, sy) = (width as f32 / scene.width.max(1) as f32, height as f32 / scene.height.max(1) as f32);
-    let factor = sx.min(sy);
-    let (dx, dy) = ((width as f32 - scene.width as f32 * factor) / 2.0, (height as f32 - scene.height as f32 * factor) / 2.0);
+    let (old_w, old_h) = (scene.width.max(1) as f32, scene.height.max(1) as f32);
+    let (sx, sy) = (width as f32 / old_w, height as f32 / old_h);
+    let factor = (sx * sy).sqrt();
+    let near = |a: f32, b: f32| (a - b).abs() < 1.0;
     for layer in &mut scene.layers {
         let t = &mut layer.transform;
-        t.x = t.x * factor + dx;
-        t.y = t.y * factor + dy;
+        let full = near(t.x, 0.0) && near(t.y, 0.0) && near(t.w, old_w) && near(t.h, old_h) && t.rotation == 0.0;
+        if full {
+            (t.w, t.h) = (width as f32, height as f32);
+            continue;
+        }
+        let (cx, cy) = t.center();
         t.w *= factor;
         t.h *= factor;
+        t.x = cx * sx - t.w / 2.0;
+        t.y = cy * sy - t.h / 2.0;
     }
     scene.width = width;
     scene.height = height;
@@ -322,12 +336,20 @@ mod tests {
     use tt_core::vcam::scene::{Layer, Source, Transform};
 
     #[test]
-    fn resizing_the_canvas_keeps_layers_in_proportion() {
+    fn resizing_keeps_full_canvas_layers_full_and_round_trips() {
         let mut scene = Scene { width: 1280, height: 720, ..Default::default() };
         scene.layers.push(Layer::new("full", Source::TestPattern, Transform { w: 1280.0, h: 720.0, ..Default::default() }));
+        scene.layers.push(Layer::new("qr", Source::TestPattern, Transform { x: 424.0, y: 144.0, w: 432.0, h: 432.0, ..Default::default() }));
+        let original = scene.clone();
         resize_scene(&mut scene, 640, 480);
-        let t = scene.layers[0].transform;
-        assert_eq!((t.w, t.h), (640.0, 360.0));
-        assert_eq!((t.x, t.y), (0.0, 60.0));
+        let full = scene.layers[0].transform;
+        assert_eq!((full.x, full.y, full.w, full.h), (0.0, 0.0, 640.0, 480.0));
+        let qr = scene.layers[1].transform;
+        assert!((qr.center().0 - 320.0).abs() < 0.01 && (qr.center().1 - 240.0).abs() < 0.01, "{qr:?}");
+        resize_scene(&mut scene, 1280, 720);
+        for (a, b) in scene.layers.iter().zip(&original.layers) {
+            let (a, b) = (a.transform, b.transform);
+            assert!((a.x - b.x).abs() < 0.01 && (a.y - b.y).abs() < 0.01 && (a.w - b.w).abs() < 0.01 && (a.h - b.h).abs() < 0.01, "{a:?} vs {b:?}");
+        }
     }
 }
