@@ -4,6 +4,7 @@ use super::VcamState;
 use crate::ui::icons;
 use crate::ui::theme::{Palette, Tone};
 use crate::widgets::button::icon_button;
+use crate::widgets::rename::{Outcome, Rename};
 
 impl VcamState {
     /// Moves a layer up (towards the top of the stack) or down.
@@ -90,7 +91,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut VcamState, errors: &[(LayerId, String
             state.selected = Some(layer.id);
         }
         if row.double_clicked() {
-            state.renaming = Some((layer.id, layer.name.clone()));
+            state.renaming = Some((layer.id, Rename::new(layer.name.clone())));
         }
         row.dnd_set_drag_payload(index);
         if let Some(from) = row.dnd_release_payload::<usize>() {
@@ -126,18 +127,18 @@ pub fn show(ui: &mut egui::Ui, state: &mut VcamState, errors: &[(LayerId, String
 }
 
 fn name(ui: &mut egui::Ui, state: &mut VcamState, layer: &Layer) {
-    if let Some((id, text)) = &mut state.renaming
+    if let Some((id, rename)) = &mut state.renaming
         && *id == layer.id
     {
-        let edit = ui.add(egui::TextEdit::singleline(text).desired_width(140.0));
-        edit.request_focus();
-        if edit.lost_focus() {
-            let (id, text) = state.renaming.take().expect("renaming");
-            if let Some(l) = state.prefs.scene_mut().layer_mut(id)
-                && !text.trim().is_empty()
-            {
-                l.name = text.trim().to_string();
+        match rename.show(ui, 140.0) {
+            Outcome::Editing => {}
+            Outcome::Save(name) => {
+                if let Some(l) = state.prefs.scene_mut().layer_mut(layer.id) {
+                    l.name = name;
+                }
+                state.renaming = None;
             }
+            Outcome::Cancel => state.renaming = None,
         }
         return;
     }

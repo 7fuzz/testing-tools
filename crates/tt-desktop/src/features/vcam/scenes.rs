@@ -3,6 +3,7 @@ use tt_core::vcam::scene::{Scene, new_id};
 use super::VcamState;
 use crate::ui::icons;
 use crate::widgets::button::icon_button;
+use crate::widgets::rename::{Outcome, Rename};
 
 impl VcamState {
     pub fn switch_scene(&mut self, index: usize) {
@@ -36,23 +37,21 @@ impl VcamState {
     }
 }
 
-/// Scene list: click to switch instantly (Ctrl+1…9 while the canvas has focus).
+/// Scene list: click to switch instantly (or Ctrl+1…9), double-click to rename.
 pub fn show(ui: &mut egui::Ui, state: &mut VcamState) {
     let mut switch = None;
     let mut delete = None;
+    let mut renamed = None;
     for (index, scene) in state.prefs.scenes.iter().enumerate() {
         let active = index == state.prefs.active;
-        let renaming = ui.data(|d| d.get_temp::<usize>(egui::Id::new("vcam_scene_renaming"))) == Some(index);
         ui.horizontal(|ui| {
-            if renaming {
-                let mut name = scene.name.clone();
-                let edit = ui.add(egui::TextEdit::singleline(&mut name).desired_width(150.0));
-                edit.request_focus();
-                if edit.changed() {
-                    ui.data_mut(|d| d.insert_temp(egui::Id::new("vcam_scene_name"), name));
-                }
-                if edit.lost_focus() {
-                    ui.data_mut(|d| d.remove::<usize>(egui::Id::new("vcam_scene_renaming")));
+            if let Some((at, rename)) = &mut state.renaming_scene
+                && *at == index
+            {
+                match rename.show(ui, 150.0) {
+                    Outcome::Editing => {}
+                    Outcome::Save(name) => renamed = Some(Some((index, name))),
+                    Outcome::Cancel => renamed = Some(None),
                 }
                 return;
             }
@@ -62,10 +61,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut VcamState) {
                 switch = Some(index);
             }
             if response.double_clicked() {
-                ui.data_mut(|d| {
-                    d.insert_temp(egui::Id::new("vcam_scene_renaming"), index);
-                    d.insert_temp(egui::Id::new("vcam_scene_name"), scene.name.clone());
-                });
+                state.renaming_scene = Some((index, Rename::new(scene.name.clone())));
             }
             if active && state.prefs.scenes.len() > 1 {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -76,12 +72,13 @@ pub fn show(ui: &mut egui::Ui, state: &mut VcamState) {
             }
         });
     }
-    if let Some(name) = ui.data(|d| d.get_temp::<String>(egui::Id::new("vcam_scene_name")))
-        && let Some(index) = ui.data(|d| d.get_temp::<usize>(egui::Id::new("vcam_scene_renaming")))
-        && let Some(scene) = state.prefs.scenes.get_mut(index)
-        && !name.trim().is_empty()
-    {
-        scene.name = name.trim().to_string();
+    if let Some(done) = renamed {
+        state.renaming_scene = None;
+        if let Some((index, name)) = done
+            && let Some(scene) = state.prefs.scenes.get_mut(index)
+        {
+            scene.name = name;
+        }
     }
     if let Some(index) = switch {
         state.switch_scene(index);

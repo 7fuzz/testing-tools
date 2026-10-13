@@ -78,7 +78,8 @@ pub struct VcamState {
     canvas: canvas::CanvasState,
     draft: Option<Draft>,
     pending_add: Option<Job<(Vec<Layer>, Vec<String>)>>,
-    renaming: Option<(LayerId, String)>,
+    renaming: Option<(LayerId, crate::widgets::rename::Rename)>,
+    renaming_scene: Option<(usize, crate::widgets::rename::Rename)>,
     last_recording: Option<tt_core::vcam::engine::Recording>,
 }
 

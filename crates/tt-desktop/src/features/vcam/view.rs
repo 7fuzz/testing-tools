@@ -12,7 +12,7 @@ use crate::widgets::button::{icon_button, primary};
 use crate::widgets::section::section;
 use crate::widgets::toast;
 
-pub fn show(ui: &mut egui::Ui, state: &mut VcamState, settings: &SettingsPrefs, cmds: &mut Commands) {
+pub fn show(ui: &mut egui::Ui, state: &mut VcamState, settings: &SettingsPrefs, cmds: &mut Commands, active: bool) {
     state.shown_at.store(now_ms(ui.ctx()), Ordering::Relaxed);
     // A static scene sends no new frames, so refresh the stats line on a slow timer.
     ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
@@ -52,6 +52,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut VcamState, settings: &SettingsPrefs, 
             keyboard(ui, state);
         }
     });
+    if active && !ui.ctx().egui_wants_keyboard_input() {
+        history_keys(ui, state);
+    }
 
     let interacting = ui.input(|i| i.pointer.any_down()) || ui.ctx().egui_wants_keyboard_input();
     let scene = state.prefs.scene().clone();
@@ -149,7 +152,7 @@ fn toolbar(ui: &mut egui::Ui, state: &mut VcamState, stats: &Stats, settings: &S
             }
         });
         ui.add_enabled_ui(state.history.can_redo(), |ui| {
-            if icon_button(ui, icons::ARROW_U_UP_RIGHT, "Redo (Ctrl+Shift+Z)").clicked() {
+            if icon_button(ui, icons::ARROW_U_UP_RIGHT, "Redo (Ctrl+Y or Ctrl+Shift+Z)").clicked() {
                 undo(state, true);
             }
         });
@@ -264,8 +267,12 @@ fn undo(state: &mut VcamState, redo: bool) {
     }
 }
 
-fn keyboard(ui: &mut egui::Ui, state: &mut VcamState) {
-    let pressed = |ui: &mut egui::Ui, modifiers: Modifiers, key: Key| ui.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(modifiers, key)));
+fn pressed(ui: &mut egui::Ui, modifiers: Modifiers, key: Key) -> bool {
+    ui.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(modifiers, key)))
+}
+
+/// Undo/redo and scene switching work anywhere in the tab; text fields keep Ctrl+Z for their own undo.
+fn history_keys(ui: &mut egui::Ui, state: &mut VcamState) {
     if pressed(ui, Modifiers::COMMAND | Modifiers::SHIFT, Key::Z) || pressed(ui, Modifiers::COMMAND, Key::Y) {
         undo(state, true);
     }
@@ -278,6 +285,10 @@ fn keyboard(ui: &mut egui::Ui, state: &mut VcamState) {
             state.switch_scene(index);
         }
     }
+}
+
+/// Keys for the selected layer, while the canvas has focus.
+fn keyboard(ui: &mut egui::Ui, state: &mut VcamState) {
     let Some(id) = state.selected else { return };
     if pressed(ui, Modifiers::NONE, Key::Escape) {
         state.selected = None;
@@ -334,6 +345,30 @@ fn files_dropped(ui: &mut egui::Ui, state: &mut VcamState, out: &canvas::CanvasO
 mod tests {
     use super::*;
     use tt_core::vcam::scene::{Layer, Source, Transform};
+
+    fn press(ctx: &egui::Context, state: &mut VcamState, key: Key) {
+        let modifiers = Modifiers::COMMAND;
+        let input = egui::RawInput {
+            events: vec![egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }],
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| history_keys(ui, state));
+        output.textures_delta.clear();
+    }
+
+    #[test]
+    fn ctrl_z_and_ctrl_y_undo_and_redo_without_canvas_focus() {
+        let ctx = egui::Context::default();
+        let mut state = VcamState::default();
+        let before = state.prefs.scene().layers.len();
+        state.history.observe(&state.prefs.scene().clone(), false);
+        state.add_layer(Layer::new("extra", Source::TestPattern, Transform::default()));
+        state.history.observe(&state.prefs.scene().clone(), false);
+        press(&ctx, &mut state, Key::Z);
+        assert_eq!(state.prefs.scene().layers.len(), before);
+        press(&ctx, &mut state, Key::Y);
+        assert_eq!(state.prefs.scene().layers.len(), before + 1);
+    }
 
     #[test]
     fn resizing_keeps_full_canvas_layers_full_and_round_trips() {

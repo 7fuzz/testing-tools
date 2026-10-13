@@ -175,7 +175,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
             Tab::Home => features::home::show(ui, self.cmds),
             Tab::Qris => features::qris::show(ui, &mut self.state.qris, &self.state.settings, self.cmds),
             Tab::Ktp => features::ktp::show(ui, &mut self.state.ktp, &self.state.settings, self.cmds),
-            Tab::Vcam => features::vcam::show(ui, &mut self.state.vcam, &self.state.settings, self.cmds),
+            Tab::Vcam => features::vcam::show(ui, &mut self.state.vcam, &self.state.settings, self.cmds, self.focused.is_none_or(|t| t == Tab::Vcam)),
             Tab::Settings => features::settings::show(ui, &mut self.state.settings),
         }
     }
