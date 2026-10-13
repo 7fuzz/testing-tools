@@ -449,4 +449,22 @@ mod tests {
         assert!(right[2] > 180 && right[0] < 60, "right {right:?}");
         engine.stop_output();
     }
+
+    /// Keeps a test pattern streaming so camera apps can be pointed at the device.
+    /// `TT_VCAM_SECONDS=30 cargo test -p tt-core stream_test_pattern -- --ignored`
+    #[test]
+    #[ignore = "streams to a real v4l2loopback device for a while"]
+    fn stream_test_pattern() {
+        let device = std::env::var("TT_VCAM_DEVICE").unwrap_or_else(|_| "/dev/video10".into());
+        let seconds: u64 = std::env::var("TT_VCAM_SECONDS").ok().and_then(|s| s.parse().ok()).unwrap_or(15);
+        let engine = Engine::start(|| {});
+        let mut scene = Scene { width: 1280, height: 720, fps: 30, ..Default::default() };
+        scene.layers.push(Layer::new("pattern", Source::TestPattern, Transform { w: 1280.0, h: 720.0, ..Default::default() }));
+        engine.set_scene(&scene);
+        engine.start_output(&device);
+        std::thread::sleep(Duration::from_secs(seconds));
+        let stats = engine.stats();
+        eprintln!("after {seconds}s: {:?}, {:.0} fps", stats.output, stats.fps);
+        assert!(matches!(stats.output, Output::Live { .. }));
+    }
 }
