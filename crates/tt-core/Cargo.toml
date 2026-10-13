@@ -10,3 +10,5 @@ serde.workspace = true
 serde_json.workspace = true
 rand = "0.9"
 rand_chacha = "0.9"
+qrcode = { version = "0.14", default-features = false }
+rqrr = { version = "0.10", default-features = false }

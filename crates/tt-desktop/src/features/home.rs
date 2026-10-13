@@ -10,7 +10,7 @@ pub fn show(ui: &mut egui::Ui, cmds: &mut Commands) {
     egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
         section(ui, "Tools");
         if Tab::TOOLS.is_empty() {
-            ui.weak("No tools yet. QRIS, KTP specimen and the virtual camera land here as they're built.");
+            ui.weak("No tools yet.");
         } else {
             cards(ui, Tab::TOOLS, cmds);
         }

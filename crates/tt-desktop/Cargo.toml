@@ -21,3 +21,9 @@ egui_dock = { version = "0.21.1", features = ["serde"] }
 egui_extras = { version = "0.36.2", features = ["default", "image", "svg"] }
 rfd = "0.17"
 open = "5"
+arboard = { version = "3", default-features = false, features = ["wayland-data-control", "image-data"] }
+chrono = "0.4"
+ureq = { version = "3", features = ["json"] }
+
+[dev-dependencies]
+egui_kittest = { version = "0.36.2", features = ["wgpu"] }

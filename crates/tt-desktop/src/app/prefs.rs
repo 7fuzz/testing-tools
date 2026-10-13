@@ -3,6 +3,7 @@ use egui_dock::DockState;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use crate::app::state::AppState;
+use crate::features::qris::QrisPrefs;
 use crate::features::settings::SettingsPrefs;
 use crate::ui::dock::{self, Tab};
 
@@ -22,6 +23,10 @@ impl Section for SettingsPrefs {
     const KEY: &'static str = "settings";
 }
 
+impl Section for QrisPrefs {
+    const KEY: &'static str = "qris";
+}
+
 fn load<T: Section>(storage: Option<&dyn Storage>) -> T {
     storage.and_then(|s| eframe::get_value(s, T::KEY)).unwrap_or_default()
 }
@@ -32,10 +37,12 @@ fn save<T: Section>(storage: &mut dyn Storage, value: &T) {
 
 pub fn restore(storage: Option<&dyn Storage>, state: &mut AppState) -> DockState<Tab> {
     state.settings = load(storage);
+    state.qris.prefs = load(storage);
     load::<DockLayout>(storage).0.unwrap_or_else(dock::initial_layout)
 }
 
 pub fn persist(storage: &mut dyn Storage, dock: &DockState<Tab>, state: &AppState) {
     save(storage, &DockLayout(Some(dock.clone())));
     save(storage, &state.settings);
+    save(storage, &state.qris.prefs);
 }

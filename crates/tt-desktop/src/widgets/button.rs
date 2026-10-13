@@ -2,7 +2,6 @@ use eframe::egui::{self, RichText};
 use crate::ui::theme::Palette;
 
 /// The one main action of a panel (Generate, Start, Apply, Create).
-#[allow(dead_code)] // first used by the QRIS tab
 pub fn primary<'a>(ui: &egui::Ui, text: &str) -> egui::Button<'a> {
     let palette = Palette::of(ui.visuals());
     egui::Button::new(RichText::new(text).color(palette.accent_text).strong())

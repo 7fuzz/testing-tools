@@ -1,9 +1,9 @@
-// Nothing registers yet: QRIS (phase 1) and KTP (phase 2) are the first entries, VCam (phase 4) the first reader.
+// VCam (phase 4) is the first reader of the registry.
 #![allow(dead_code)]
 
 use eframe::egui;
 use serde_json::Value;
-use tt_core::generator::{to_json, ErasedGenerator, Generator};
+use tt_core::generator::{ErasedGenerator, Generator, to_json};
 use crate::ui::dock::Tab;
 
 /// The desktop half of a generator: the compact form other tools embed, such as VCam's quick create.
@@ -37,7 +37,7 @@ fn quick_form_json<G: GeneratorUi>(ui: &mut egui::Ui, params: &mut Value) -> boo
     changed
 }
 
-pub const REGISTRY: &[GeneratorEntry] = &[];
+pub const REGISTRY: &[GeneratorEntry] = &[GeneratorEntry::of::<tt_core::qris::Qris>()];
 
 pub fn find(id: &str) -> Option<&'static GeneratorEntry> {
     REGISTRY.iter().find(|entry| entry.core.id == id)

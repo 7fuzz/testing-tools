@@ -2,7 +2,11 @@ mod app;
 mod features;
 mod generators;
 mod ui;
+mod util;
 mod widgets;
+
+#[cfg(test)]
+mod screenshots;
 
 pub const APP_ID: &str = "testing-tools";
 
