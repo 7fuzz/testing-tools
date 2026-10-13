@@ -1,5 +1,10 @@
+pub mod files;
 pub mod generator;
+pub mod ids;
 pub mod ktp;
+pub mod negatives;
+pub mod payment;
+pub mod people;
 pub mod qr;
 pub mod qris;
 pub mod registry;

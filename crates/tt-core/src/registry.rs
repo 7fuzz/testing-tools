@@ -5,6 +5,7 @@ pub const BUILTIN: &[ErasedGenerator] = &[
     ErasedGenerator::of::<crate::qris::Qris>(),
     ErasedGenerator::of::<crate::ktp::Ktp>(),
     ErasedGenerator::of::<crate::ktp::KtpSelfie>(),
+    ErasedGenerator::of::<crate::negatives::KycNegative>(),
 ];
 
 pub fn find(id: &str) -> Option<&'static ErasedGenerator> {

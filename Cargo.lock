@@ -3921,6 +3921,8 @@ dependencies = [
  "ab_glyph",
  "anyhow",
  "chrono",
+ "crc32fast",
+ "flate2",
  "image",
  "libc",
  "qrcode",
@@ -3930,6 +3932,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tiny-skia",
+ "uuid",
 ]
 
 [[package]]
